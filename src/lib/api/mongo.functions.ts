@@ -1,15 +1,4 @@
 import { createServerFn } from "@tanstack/react-start";
-import { connectToDatabase } from "../db/mongodb";
-import {
-  EmployeeModel,
-  AssetModel,
-  AssignmentModel,
-  AuditLogModel,
-  UserModel,
-  CompanyModel,
-  DepartmentModel,
-  LocationModel,
-} from "../db/models";
 
 // ─── HELPER: Serialize Mongo Docs to Plain JSON Objects ─────────────────────
 function serializeDoc<T>(doc: any): T {
@@ -27,11 +16,19 @@ function serializeList<T>(list: any[]): T[] {
   return list.map((item) => serializeDoc<T>(item));
 }
 
+// Helper to dynamically load database and models on the server only
+async function getDb() {
+  const { connectToDatabase } = await import("../db/mongodb");
+  const models = await import("../db/models");
+  await connectToDatabase();
+  return models;
+}
+
 // ─── AUTH FUNCTIONS ─────────────────────────────────────────────────────────
 export const loginMongoUser = createServerFn({ method: "POST" })
   .validator((data: { email: string; password_hash: string }) => data)
   .handler(async ({ data }) => {
-    await connectToDatabase();
+    const { UserModel } = await getDb();
     const email = data.email.toLowerCase().trim();
     let user = await UserModel.findOne({ email });
 
@@ -65,7 +62,7 @@ export const loginMongoUser = createServerFn({ method: "POST" })
 export const getEmployees = createServerFn({ method: "GET" })
   .validator((data: { q?: string } | undefined) => data)
   .handler(async ({ data }) => {
-    await connectToDatabase();
+    const { EmployeeModel } = await getDb();
     const query: any = {};
     if (data?.q) {
       const reg = new RegExp(data.q, "i");
@@ -84,7 +81,7 @@ export const getEmployees = createServerFn({ method: "GET" })
 export const upsertEmployee = createServerFn({ method: "POST" })
   .validator((data: any) => data)
   .handler(async ({ data }) => {
-    await connectToDatabase();
+    const { EmployeeModel } = await getDb();
     const { id, _id, ...fields } = data;
     let result;
     if (id || _id) {
@@ -102,7 +99,7 @@ export const upsertEmployee = createServerFn({ method: "POST" })
 export const deleteEmployee = createServerFn({ method: "POST" })
   .validator((data: { id: string }) => data)
   .handler(async ({ data }) => {
-    await connectToDatabase();
+    const { EmployeeModel } = await getDb();
     await EmployeeModel.findByIdAndDelete(data.id);
     return { ok: true };
   });
@@ -111,7 +108,7 @@ export const deleteEmployee = createServerFn({ method: "POST" })
 export const getAssets = createServerFn({ method: "GET" })
   .validator((data: { q?: string; status?: string; category?: string } | undefined) => data)
   .handler(async ({ data }) => {
-    await connectToDatabase();
+    const { AssetModel } = await getDb();
     const query: any = {};
     if (data?.q) {
       const reg = new RegExp(data.q, "i");
@@ -134,7 +131,7 @@ export const getAssets = createServerFn({ method: "GET" })
 export const getAssetById = createServerFn({ method: "GET" })
   .validator((data: { id: string }) => data)
   .handler(async ({ data }) => {
-    await connectToDatabase();
+    const { AssetModel } = await getDb();
     const asset = await AssetModel.findById(data.id);
     return serializeDoc(asset);
   });
@@ -142,7 +139,7 @@ export const getAssetById = createServerFn({ method: "GET" })
 export const upsertAsset = createServerFn({ method: "POST" })
   .validator((data: any) => data)
   .handler(async ({ data }) => {
-    await connectToDatabase();
+    const { AssetModel } = await getDb();
     const { id, _id, ...fields } = data;
     let result;
     if (id || _id) {
@@ -160,7 +157,7 @@ export const upsertAsset = createServerFn({ method: "POST" })
 export const deleteAsset = createServerFn({ method: "POST" })
   .validator((data: { id: string }) => data)
   .handler(async ({ data }) => {
-    await connectToDatabase();
+    const { AssetModel } = await getDb();
     await AssetModel.findByIdAndDelete(data.id);
     return { ok: true };
   });
@@ -169,7 +166,7 @@ export const deleteAsset = createServerFn({ method: "POST" })
 export const getAssignments = createServerFn({ method: "GET" })
   .validator((data: { status?: string } | undefined) => data)
   .handler(async ({ data }) => {
-    await connectToDatabase();
+    const { AssignmentModel } = await getDb();
     const query: any = {};
     if (data?.status && data.status !== "all") query.status = data.status;
 
@@ -180,7 +177,7 @@ export const getAssignments = createServerFn({ method: "GET" })
 export const createAssignment = createServerFn({ method: "POST" })
   .validator((data: any) => data)
   .handler(async ({ data }) => {
-    await connectToDatabase();
+    const { AssignmentModel, AssetModel } = await getDb();
     const assignment = await AssignmentModel.create(data);
     if (data.asset_id) {
       await AssetModel.findByIdAndUpdate(data.asset_id, {
@@ -194,7 +191,7 @@ export const createAssignment = createServerFn({ method: "POST" })
 export const returnAssignment = createServerFn({ method: "POST" })
   .validator((data: { id: string; asset_id: string; remarks?: string }) => data)
   .handler(async ({ data }) => {
-    await connectToDatabase();
+    const { AssignmentModel, AssetModel } = await getDb();
     const assignment = await AssignmentModel.findByIdAndUpdate(
       data.id,
       { status: "returned", returned_at: new Date(), remarks: data.remarks },
@@ -211,7 +208,7 @@ export const returnAssignment = createServerFn({ method: "POST" })
 
 // ─── AUDIT LOGS ─────────────────────────────────────────────────────────────
 export const getAuditLogs = createServerFn({ method: "GET" }).handler(async () => {
-  await connectToDatabase();
+  const { AuditLogModel } = await getDb();
   const logs = await AuditLogModel.find({}).sort({ created_at: -1 }).limit(500);
   return serializeList(logs);
 });
@@ -219,7 +216,7 @@ export const getAuditLogs = createServerFn({ method: "GET" }).handler(async () =
 export const createAuditLog = createServerFn({ method: "POST" })
   .validator((data: any) => data)
   .handler(async ({ data }) => {
-    await connectToDatabase();
+    const { AuditLogModel } = await getDb();
     const log = await AuditLogModel.create(data);
     return serializeDoc(log);
   });
@@ -228,7 +225,7 @@ export const createAuditLog = createServerFn({ method: "POST" })
 export const getMasterData = createServerFn({ method: "GET" })
   .validator((data: { type: "companies" | "departments" | "locations" }) => data)
   .handler(async ({ data }) => {
-    await connectToDatabase();
+    const { CompanyModel, DepartmentModel, LocationModel } = await getDb();
     let items;
     if (data.type === "companies") {
       items = await CompanyModel.find({}).sort({ name: 1 });
@@ -243,7 +240,7 @@ export const getMasterData = createServerFn({ method: "GET" })
 export const upsertMasterItem = createServerFn({ method: "POST" })
   .validator((data: { type: "companies" | "departments" | "locations"; name: string; [key: string]: any }) => data)
   .handler(async ({ data }) => {
-    await connectToDatabase();
+    const { CompanyModel, DepartmentModel, LocationModel } = await getDb();
     const { id, _id, type, name, ...rest } = data;
     const cleanName = name.trim();
     let item;
@@ -272,7 +269,7 @@ export const upsertMasterItem = createServerFn({ method: "POST" })
 export const deleteMasterItem = createServerFn({ method: "POST" })
   .validator((data: { id: string; type?: "companies" | "departments" | "locations" }) => data)
   .handler(async ({ data }) => {
-    await connectToDatabase();
+    const { CompanyModel, DepartmentModel, LocationModel } = await getDb();
     if (data.type === "companies") {
       await CompanyModel.findByIdAndDelete(data.id);
     } else if (data.type === "departments") {
