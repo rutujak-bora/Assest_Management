@@ -6,7 +6,9 @@ import {
   AssignmentModel,
   AuditLogModel,
   UserModel,
-  MasterItemModel,
+  CompanyModel,
+  DepartmentModel,
+  LocationModel,
 } from "../db/models";
 
 // ─── HELPER: Serialize Mongo Docs to Plain JSON Objects ─────────────────────
@@ -222,12 +224,19 @@ export const createAuditLog = createServerFn({ method: "POST" })
     return serializeDoc(log);
   });
 
-// ─── MASTER DATA (COMPANIES, DEPARTMENTS, LOCATIONS) ────────────────────────
+// ─── MASTER DATA (COMPANIES, DEPARTMENTS, LOCATIONS IN SEPARATE COLLECTIONS) ───
 export const getMasterData = createServerFn({ method: "GET" })
   .validator((data: { type: "companies" | "departments" | "locations" }) => data)
   .handler(async ({ data }) => {
     await connectToDatabase();
-    const items = await MasterItemModel.find({ type: data.type }).sort({ name: 1 });
+    let items;
+    if (data.type === "companies") {
+      items = await CompanyModel.find({}).sort({ name: 1 });
+    } else if (data.type === "departments") {
+      items = await DepartmentModel.find({}).sort({ name: 1 });
+    } else {
+      items = await LocationModel.find({}).sort({ name: 1 });
+    }
     return serializeList(items);
   });
 
@@ -236,18 +245,44 @@ export const upsertMasterItem = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await connectToDatabase();
     const { id, _id, type, name, ...rest } = data;
-    const item = await MasterItemModel.findOneAndUpdate(
-      { type, name: new RegExp(`^${name.trim()}$`, "i") },
-      { type, name: name.trim(), ...rest },
-      { new: true, upsert: true }
-    );
+    const cleanName = name.trim();
+    let item;
+    if (type === "companies") {
+      item = await CompanyModel.findOneAndUpdate(
+        { name: new RegExp(`^${cleanName}$`, "i") },
+        { name: cleanName, ...rest },
+        { new: true, upsert: true }
+      );
+    } else if (type === "departments") {
+      item = await DepartmentModel.findOneAndUpdate(
+        { name: new RegExp(`^${cleanName}$`, "i") },
+        { name: cleanName, ...rest },
+        { new: true, upsert: true }
+      );
+    } else {
+      item = await LocationModel.findOneAndUpdate(
+        { name: new RegExp(`^${cleanName}$`, "i") },
+        { name: cleanName, ...rest },
+        { new: true, upsert: true }
+      );
+    }
     return serializeDoc(item);
   });
 
 export const deleteMasterItem = createServerFn({ method: "POST" })
-  .validator((data: { id: string }) => data)
+  .validator((data: { id: string; type?: "companies" | "departments" | "locations" }) => data)
   .handler(async ({ data }) => {
     await connectToDatabase();
-    await MasterItemModel.findByIdAndDelete(data.id);
+    if (data.type === "companies") {
+      await CompanyModel.findByIdAndDelete(data.id);
+    } else if (data.type === "departments") {
+      await DepartmentModel.findByIdAndDelete(data.id);
+    } else if (data.type === "locations") {
+      await LocationModel.findByIdAndDelete(data.id);
+    } else {
+      await CompanyModel.findByIdAndDelete(data.id);
+      await DepartmentModel.findByIdAndDelete(data.id);
+      await LocationModel.findByIdAndDelete(data.id);
+    }
     return { ok: true };
   });

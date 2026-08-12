@@ -1,5 +1,56 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
+// ─── Company Master Schema ──────────────────────────────────────────────────
+export interface ICompany extends Document {
+  name: string;
+  code?: string;
+  description?: string;
+  created_at: Date;
+}
+
+const CompanySchema = new Schema<ICompany>(
+  {
+    name: { type: String, required: true, unique: true, index: true },
+    code: { type: String, default: "" },
+    description: { type: String, default: "" },
+  },
+  { timestamps: { createdAt: "created_at", updatedAt: false } }
+);
+
+// ─── Department Master Schema ───────────────────────────────────────────────
+export interface IDepartment extends Document {
+  name: string;
+  code?: string;
+  description?: string;
+  created_at: Date;
+}
+
+const DepartmentSchema = new Schema<IDepartment>(
+  {
+    name: { type: String, required: true, unique: true, index: true },
+    code: { type: String, default: "" },
+    description: { type: String, default: "" },
+  },
+  { timestamps: { createdAt: "created_at", updatedAt: false } }
+);
+
+// ─── Location Master Schema ─────────────────────────────────────────────────
+export interface ILocation extends Document {
+  name: string;
+  code?: string;
+  address?: string;
+  created_at: Date;
+}
+
+const LocationSchema = new Schema<ILocation>(
+  {
+    name: { type: String, required: true, unique: true, index: true },
+    code: { type: String, default: "" },
+    address: { type: String, default: "" },
+  },
+  { timestamps: { createdAt: "created_at", updatedAt: false } }
+);
+
 // ─── Employee Schema ────────────────────────────────────────────────────────
 export interface IEmployee extends Document {
   employee_code: string;
@@ -154,42 +205,27 @@ const UserSchema = new Schema<IUser>(
   { timestamps: { createdAt: "created_at", updatedAt: false } }
 );
 
-// ─── Master Schemas (Companies, Departments, Locations) ─────────────────────
-export interface IMasterItem extends Document {
-  type: "companies" | "departments" | "locations";
-  name: string;
-  code?: string;
-  description?: string;
-  address?: string;
-  created_at: Date;
-}
+// Exports mapped to individual collections in MongoDB Atlas
+export const CompanyModel: Model<ICompany> =
+  mongoose.models.Company || mongoose.model<ICompany>("Company", CompanySchema, "companies");
 
-const MasterItemSchema = new Schema<IMasterItem>(
-  {
-    type: { type: String, required: true, enum: ["companies", "departments", "locations"], index: true },
-    name: { type: String, required: true },
-    code: { type: String, default: "" },
-    description: { type: String, default: "" },
-    address: { type: String, default: "" },
-  },
-  { timestamps: { createdAt: "created_at", updatedAt: false } }
-);
+export const DepartmentModel: Model<IDepartment> =
+  mongoose.models.Department || mongoose.model<IDepartment>("Department", DepartmentSchema, "departments");
 
-// Helper to get or create models safely for SSR hot-reloading
+export const LocationModel: Model<ILocation> =
+  mongoose.models.Location || mongoose.model<ILocation>("Location", LocationSchema, "locations");
+
 export const EmployeeModel: Model<IEmployee> =
-  mongoose.models.Employee || mongoose.model<IEmployee>("Employee", EmployeeSchema);
+  mongoose.models.Employee || mongoose.model<IEmployee>("Employee", EmployeeSchema, "employees");
 
 export const AssetModel: Model<IAsset> =
-  mongoose.models.Asset || mongoose.model<IAsset>("Asset", AssetSchema);
+  mongoose.models.Asset || mongoose.model<IAsset>("Asset", AssetSchema, "assets");
 
 export const AssignmentModel: Model<IAssignment> =
-  mongoose.models.Assignment || mongoose.model<IAssignment>("Assignment", AssignmentSchema);
+  mongoose.models.Assignment || mongoose.model<IAssignment>("Assignment", AssignmentSchema, "assignments");
 
 export const AuditLogModel: Model<IAuditLog> =
-  mongoose.models.AuditLog || mongoose.model<IAuditLog>("AuditLog", AuditLogSchema);
+  mongoose.models.AuditLog || mongoose.model<IAuditLog>("AuditLog", AuditLogSchema, "auditlogs");
 
 export const UserModel: Model<IUser> =
-  mongoose.models.User || mongoose.model<IUser>("User", UserSchema);
-
-export const MasterItemModel: Model<IMasterItem> =
-  mongoose.models.MasterItem || mongoose.model<IMasterItem>("MasterItem", MasterItemSchema);
+  mongoose.models.User || mongoose.model<IUser>("User", UserSchema, "users");
