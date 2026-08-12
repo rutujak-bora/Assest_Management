@@ -25,23 +25,36 @@ function AuthPage() {
   const [email, setEmail] = useState("shahid@bora.tech");
   const [password, setPassword] = useState("shahid@123");
   const [loading, setLoading] = useState(false);
-  const [seeded, setSeeded] = useState(false);
 
   useEffect(() => {
-    seed({}).then(() => setSeeded(true)).catch((e) => {
-      console.error(e);
-      setSeeded(true);
-    });
+    // Background seed attempt
+    try {
+      seed({}).catch((e) => console.log("[Seed Notice]:", e));
+    } catch {
+      // Ignore client-side server fn call error
+    }
   }, [seed]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email || !password) return;
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) return toast.error(error.message);
-    toast.success("Welcome back");
-    navigate({ to: "/dashboard", replace: true });
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      setLoading(false);
+
+      if (error) {
+        toast.error(error.message || "Failed to sign in");
+        return;
+      }
+
+      toast.success("Welcome back");
+      navigate({ to: "/dashboard", replace: true });
+    } catch (err: any) {
+      setLoading(false);
+      toast.error(err?.message || "Sign in failed");
+    }
   };
 
   return (
@@ -76,20 +89,29 @@ function AuthPage() {
             <form onSubmit={onSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" autoComplete="email" required
-                  value={email} onChange={(e) => setEmail(e.target.value)} />
+                <Input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" autoComplete="current-password" required
-                  value={password} onChange={(e) => setPassword(e.target.value)} />
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
               </div>
-              <Button type="submit" className="w-full" disabled={loading || !seeded}>
+              <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign in"}
               </Button>
-              {!seeded && (
-                <p className="text-xs text-muted-foreground text-center">Initializing default users…</p>
-              )}
             </form>
             <div className="mt-6 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
               <div className="font-medium text-foreground mb-1">Demo accounts</div>
