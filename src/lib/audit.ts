@@ -7,9 +7,10 @@ export async function logAudit(
   details?: Record<string, unknown>,
 ) {
   const { data } = await supabase.auth.getUser();
-  if (!data.user) return;
+  const userId = data?.user?.id || data?.user?._id || "system";
+
   await supabase.from("audit_log").insert({
-    user_id: data.user.id,
+    user_id: userId,
     entity,
     action,
     entity_id: entityId ?? null,

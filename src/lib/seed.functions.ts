@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
+import { connectToDatabase } from "./db/mongodb";
+import { UserModel } from "./db/models";
 
 const SEED_USERS = [
   { email: "shahid@bora.tech", password: "shahid@123", full_name: "Shahid" },
@@ -6,32 +8,26 @@ const SEED_USERS = [
 ];
 
 export const seedDefaultUsers = createServerFn({ method: "POST" }).handler(async () => {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const results: { email: string; created: boolean }[] = [];
-  for (const u of SEED_USERS) {
-    const { data: list } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
-    const exists = list?.users?.some((x) => x.email?.toLowerCase() === u.email.toLowerCase());
-    if (exists) {
-      results.push({ email: u.email, created: false });
-      continue;
-    }
-    const { error } = await supabaseAdmin.auth.admin.createUser({
-      email: u.email,
-      password: u.password,
-      email_confirm: true,
-      user_metadata: { full_name: u.full_name },
-    });
-    if (error) {
-      const msg = error.message.toLowerCase();
-      if (msg.includes("already") || msg.includes("duplicate") || msg.includes("exists")) {
+  try {
+    await connectToDatabase();
+    const results: { email: string; created: boolean }[] = [];
+    for (const u of SEED_USERS) {
+      const exists = await UserModel.findOne({ email: u.email.toLowerCase() });
+      if (exists) {
         results.push({ email: u.email, created: false });
         continue;
       }
-      // Swallow other errors too so seeding never blocks login
-      results.push({ email: u.email, created: false });
-      continue;
+      await UserModel.create({
+        email: u.email.toLowerCase(),
+        password_hash: u.password,
+        full_name: u.full_name,
+        role: "admin",
+      });
+      results.push({ email: u.email, created: true });
     }
-    results.push({ email: u.email, created: true });
+    return { ok: true, results };
+  } catch (error: any) {
+    console.error("[MongoDB Seed Users Error]:", error);
+    return { ok: false, error: error.message };
   }
-  return { ok: true, results };
 });
