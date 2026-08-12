@@ -46,6 +46,8 @@ function setStoredUser(user: any) {
 class QueryBuilder {
   private tableName: string;
   private filters: Record<string, any> = {};
+  private operation: "select" | "insert" | "update" | "upsert" | "delete" = "select";
+  private writeValues: any = null;
 
   constructor(tableName: string) {
     this.tableName = tableName;
@@ -72,66 +74,37 @@ class QueryBuilder {
     return this;
   }
 
+  insert(values: any | any[]) {
+    this.operation = "insert";
+    this.writeValues = values;
+    return this;
+  }
+
+  upsert(values: any | any[]) {
+    this.operation = "upsert";
+    this.writeValues = values;
+    return this;
+  }
+
+  update(values: any) {
+    this.operation = "update";
+    this.writeValues = values;
+    return this;
+  }
+
+  delete() {
+    this.operation = "delete";
+    return this;
+  }
+
   async single() {
     const res = await this.execute();
     const data = Array.isArray(res.data) ? res.data[0] ?? null : res.data;
-    return { data, error: null };
+    return { data, error: res.error };
   }
 
   async maybeSingle() {
     return this.single();
-  }
-
-  async insert(values: any | any[]) {
-    const items = Array.isArray(values) ? values : [values];
-    const results = [];
-    for (const item of items) {
-      if (this.tableName === "employees") {
-        const res = await upsertEmployee({ data: item });
-        results.push(res);
-      } else if (this.tableName === "assets") {
-        const res = await upsertAsset({ data: item });
-        results.push(res);
-      } else if (this.tableName === "asset_assignments") {
-        const res = await createAssignment({ data: item });
-        results.push(res);
-      } else if (this.tableName === "audit_log") {
-        const res = await createAuditLog({ data: item });
-        results.push(res);
-      }
-    }
-    return { data: results.length === 1 ? results[0] : results, error: null };
-  }
-
-  async upsert(values: any | any[]) {
-    return this.insert(values);
-  }
-
-  async update(values: any) {
-    if (this.tableName === "assets" && this.filters.id) {
-      const res = await upsertAsset({ data: { id: this.filters.id, ...values } });
-      return { data: res, error: null };
-    } else if (this.tableName === "employees" && this.filters.id) {
-      const res = await upsertEmployee({ data: { id: this.filters.id, ...values } });
-      return { data: res, error: null };
-    } else if (this.tableName === "asset_assignments" && this.filters.id) {
-      const res = await returnAssignment({ data: { id: this.filters.id, asset_id: values.asset_id, ...values } });
-      return { data: res, error: null };
-    }
-    return { data: null, error: null };
-  }
-
-  async delete() {
-    return {
-      eq: async (column: string, val: any) => {
-        if (this.tableName === "employees") {
-          await deleteEmployee({ data: { id: val } });
-        } else if (this.tableName === "assets") {
-          await deleteAsset({ data: { id: val } });
-        }
-        return { data: null, error: null };
-      },
-    };
   }
 
   // Promise-like resolution when awaiting .select() or query builder directly
@@ -141,6 +114,57 @@ class QueryBuilder {
 
   private async execute() {
     try {
+      if (this.operation === "insert" || this.operation === "upsert") {
+        const items = Array.isArray(this.writeValues) ? this.writeValues : [this.writeValues];
+        const results = [];
+        for (const item of items) {
+          if (this.tableName === "employees") {
+            const res = await upsertEmployee({ data: item });
+            results.push(res);
+          } else if (this.tableName === "assets") {
+            const res = await upsertAsset({ data: item });
+            results.push(res);
+          } else if (this.tableName === "asset_assignments") {
+            const res = await createAssignment({ data: item });
+            results.push(res);
+          } else if (this.tableName === "audit_log") {
+            const res = await createAuditLog({ data: item });
+            results.push(res);
+          }
+        }
+        const data = results.length === 1 ? results[0] : results;
+        return { data, error: null };
+      }
+
+      if (this.operation === "update") {
+        const values = this.writeValues;
+        const id = this.filters.id || values.id;
+        if (this.tableName === "assets") {
+          const res = await upsertAsset({ data: { id, ...values } });
+          return { data: res, error: null };
+        } else if (this.tableName === "employees") {
+          const res = await upsertEmployee({ data: { id, ...values } });
+          return { data: res, error: null };
+        } else if (this.tableName === "asset_assignments") {
+          const res = await returnAssignment({ data: { id, asset_id: values.asset_id, ...values } });
+          return { data: res, error: null };
+        }
+        return { data: null, error: null };
+      }
+
+      if (this.operation === "delete") {
+        const id = this.filters.id;
+        if (id) {
+          if (this.tableName === "employees") {
+            await deleteEmployee({ data: { id } });
+          } else if (this.tableName === "assets") {
+            await deleteAsset({ data: { id } });
+          }
+        }
+        return { data: null, error: null };
+      }
+
+      // Default: select
       if (this.tableName === "employees") {
         const data = await getEmployees({});
         return { data, error: null };
@@ -161,10 +185,11 @@ class QueryBuilder {
         const data = await getAuditLogs();
         return { data, error: null };
       }
+
       return { data: [], error: null };
     } catch (error) {
       console.error(`[MongoDB Client] Query error on ${this.tableName}:`, error);
-      return { data: [], error };
+      return { data: null, error };
     }
   }
 }
