@@ -12,4 +12,9 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // Override the default Cloudflare preset to target Vercel serverless functions
+  // so that server functions (MongoDB queries) are properly deployed on Vercel.
+  nitro: {
+    preset: "vercel",
+  },
 });
