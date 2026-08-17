@@ -1,8 +1,10 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Toaster } from "@/components/ui/sonner";
+import { seedInitialDataIfEmpty } from "@/lib/seedClientData";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -15,6 +17,10 @@ export const Route = createFileRoute("/_authenticated")({
 });
 
 function AuthedLayout() {
+  useEffect(() => {
+    seedInitialDataIfEmpty();
+  }, []);
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
