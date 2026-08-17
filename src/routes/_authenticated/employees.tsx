@@ -71,16 +71,29 @@ function EmployeesPage() {
     if (!draft.employee_code || !draft.name) return toast.error("Employee code and name are required");
     setSaving(true);
     const payload = { ...draft };
-    const res = draft.id
-      ? await supabase.from("employees").update(payload).eq("id", draft.id).select("id").single()
-      : await supabase.from("employees").insert(payload).select("id").single();
-    setSaving(false);
-    if (res.error) return toast.error(res.error.message);
-    await logAudit("employee", draft.id ? "update" : "create", res.data.id, { name: draft.name });
-    toast.success(draft.id ? "Employee updated" : "Employee added");
-    setOpen(false);
-    setDraft(EMPTY);
-    qc.invalidateQueries({ queryKey: ["employees"] });
+    try {
+      const res = draft.id
+        ? await supabase.from("employees").update(payload).eq("id", draft.id).select("id").single()
+        : await supabase.from("employees").insert(payload).select("id").single();
+      setSaving(false);
+      if (res.error) {
+        toast.error(typeof res.error === "string" ? res.error : (res.error.message || "Failed to save employee"));
+        return;
+      }
+      const savedId = res.data?.id || res.data?._id || draft.id || crypto.randomUUID();
+      try {
+        await logAudit("employee", draft.id ? "update" : "create", savedId, { name: draft.name });
+      } catch (e) {
+        console.warn("[Audit warning]", e);
+      }
+      toast.success(draft.id ? "Employee updated" : "Employee added");
+      setOpen(false);
+      setDraft(EMPTY);
+      qc.invalidateQueries({ queryKey: ["employees"] });
+    } catch (err: any) {
+      setSaving(false);
+      toast.error(err?.message || "Error saving employee");
+    }
   };
 
   const exportExcel = () => {
