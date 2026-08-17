@@ -1,5 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
 
+// Polyfill Node.js require on server-side ESM environment (Vercel Node runtime)
+if (typeof window === "undefined") {
+  import("module").then(({ createRequire }) => {
+    if (typeof globalThis.require === "undefined") {
+      try {
+        (globalThis as any).require = createRequire(import.meta.url);
+      } catch {}
+    }
+  }).catch(() => {});
+}
+
 // ─── HELPER: Serialize Mongo Docs to Plain JSON Objects ─────────────────────
 function serializeDoc<T>(doc: any): T {
   if (!doc) return doc;
