@@ -1,1 +1,0 @@
-import{s as t}from"./index-DfMyTBe3.js";async function n(a,i,e,u){const{data:s}=await t.auth.getUser(),r=s?.user?.id||s?.user?._id||"system";await t.from("audit_log").insert({user_id:r,entity:a,action:i,entity_id:e??null,details:u??null})}export{n as l};
