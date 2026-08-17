@@ -103,6 +103,11 @@ function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `if (typeof window !== 'undefined' && typeof window.require === 'undefined') { window.require = function(module) { console.warn('Browser polyfill called for module:', module); return {}; }; }`,
+          }}
+        />
         <HeadContent />
       </head>
       <body>
